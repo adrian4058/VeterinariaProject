@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../database/db");
-// const Points = require("./Points")
+const Points = require("../models/Points");
 
 const User = sequelize.define("User", {
   id: {
@@ -29,10 +29,9 @@ const User = sequelize.define("User", {
   },
 });
 
-
-// User.hasOne(Points, { foreignKey: "userId" });
-// 
-// User.hasMany(Transaction, { foreignKey: "userId" });
-// User.hasMany(Transaction, { as: "adminTransactions", foreignKey: "adminId" });
-
+User.associate = (models) => {
+  User.hasMany(models.Transaction, { foreignKey: "userId", as: "userTransactions" });
+  User.hasMany(models.Transaction, { foreignKey: "adminId", as: "adminTransactions" });
+  User.hasOne(models.Points, { foreignKey: "userId", as: "points" });
+};
 module.exports = User;

@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../database/db");
-const User = require("../models/Users");
+const User = require("../models/User");
 
 const Transaction = sequelize.define(
   "Transaction",
@@ -39,7 +39,15 @@ const Transaction = sequelize.define(
       allowNull: true,
     },
   },
+  // {
+  //   tableName: "transactions",
+  //   timestamps: true,
+  // }
 );
 
+Transaction.associate = (models) => {
+  Transaction.belongsTo(models.User, { foreignKey: "userId", as: "user" });
+  Transaction.belongsTo(models.User, { foreignKey: "adminId", as: "admin" });
+};
 
 module.exports = Transaction;

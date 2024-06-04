@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("../database/db");
-const User = require("./Users");
+const User = require("../models/User");
 
 const Points = sequelize.define("Points", {
   id: {
@@ -23,6 +23,8 @@ const Points = sequelize.define("Points", {
   },
 });
 
-
+Points.associate = (models) => {
+  Points.belongsTo(models.User, { foreignKey: "userId", as: "user" });
+};
 
 module.exports = Points;
