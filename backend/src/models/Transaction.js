@@ -39,10 +39,6 @@ const Transaction = sequelize.define(
       allowNull: true,
     },
   },
-  // {
-  //   tableName: "transactions",
-  //   timestamps: true,
-  // }
 );
 
 Transaction.associate = (models) => {

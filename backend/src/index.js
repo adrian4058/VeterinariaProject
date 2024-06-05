@@ -7,7 +7,7 @@ require("./models/User");
 
 async function main() {
   try {
-    await sequelize.sync({force: true});
+    await sequelize.sync();
     console.log("Db connected");
     app.listen(3007);
     console.log("Server on port 3007");
