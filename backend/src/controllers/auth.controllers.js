@@ -1,7 +1,21 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const User = require("../models/User");
+// const nodemailer = require("nodemailer");
+const { User, Points, Transaction } = require("../database/db");
+
 const SECRET_KEY = "clavesecreta";
+
+// let transporter = nodemailer.createTransport({
+//   service: 'gmail',
+//   auth: {
+//     type: 'OAuth2',
+//     user: process.env.MAIL_USERNAME,
+//     pass: process.env.MAIL_PASSWORD,
+//     clientId: process.env.OAUTH_CLIENTID,
+//     clientSecret: process.env.OAUTH_CLIENT_SECRET,
+//     refreshToken: process.env.OAUTH_REFRESH_TOKEN
+//   }
+// });
 
 const signUp = async (req, res) => {
   try {
@@ -22,6 +36,7 @@ const signUp = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
     const newUser = await User.create({
       email,
       password: hashedPassword,
@@ -30,6 +45,53 @@ const signUp = async (req, res) => {
       dni,
       role: role || "user",
     });
+
+    await Points.create({
+      userId: newUser.id,
+    });
+
+    const token = jwt.sign({ id: newUser.id, role: newUser.role }, SECRET_KEY, { expiresIn: "1h" });
+    res.status(201).json({ newUser, token });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+const signUpForAdmin = async (req, res) => {
+  try {
+    const { email, firstname, lastname, dni, role } = req.body;
+
+    const requestingUser = await User.findByPk(req.user.id);
+    if (!requestingUser || requestingUser.role !== "admin") {
+      return res.status(403).json({ error: "Solo los administradores pueden registrar nuevos usuarios" });
+    }
+
+    if (typeof firstname !== "string" || typeof lastname !== "string") {
+      return res.status(400).json({ error: "El nombre y el apellido deben ser cadenas de caracteres" });
+    }
+    if (typeof dni !== "number") {
+      return res.status(400).json({ error: "El DNI debe ser un número" });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "El email no es válido" });
+    }
+
+    const hashedPassword = await bcrypt.hash(dni.toString(), 10);
+
+    const newUser = await User.create({
+      email,
+      password: hashedPassword,
+      firstname,
+      lastname,
+      dni,
+      role: role || "user",
+    });
+
+    await Points.create({
+      userId: newUser.id,
+    });
+
     const token = jwt.sign({ id: newUser.id, role: newUser.role }, SECRET_KEY, { expiresIn: "1h" });
     res.status(201).json({ newUser, token });
   } catch (error) {
@@ -62,22 +124,60 @@ const signIn = async (req, res) => {
   }
 };
 
-module.exports = { signUp, signIn };
-
-module.exports = { signUp, signIn };
-
-const authenticateJWT = (req, res, next) => {
-  const token = req.header("Authorization");
-  if (!token) {
-    return res.status(401).json({ error: "Acceso denegado" });
-  }
+const getAllUsers = async (req, res) => {
   try {
-    const verified = jwt.verify(token, SECRET_KEY);
-    req.user = verified;
-    next();
+    const requestingUser = await User.findByPk(req.user.id);
+    if (!requestingUser || requestingUser.role !== "admin") {
+      return res.status(403).json({ error: "Solo los administradores pueden acceder a esta información" });
+    }
+
+    const nonAdminUsers = await User.findAll({
+      where: { role: "user" },
+      include: [
+        {
+          model: Points,
+          attributes: ["totalPoints"],
+        },
+        {
+          model: Transaction,
+          as: "UserTransactions",
+          attributes: ["id", "points", "type", "description"],
+        },
+      ],
+    });
+
+    res.status(200).json(nonAdminUsers);
   } catch (error) {
-    res.status(400).json({ error: "Token no válido" });
+    res.status(400).json({ error: error.message });
   }
 };
 
-module.exports = { signUp, signIn, authenticateJWT };
+const getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId, {
+      include: [
+        {
+          model: Points,
+          attributes: ["totalPoints"],
+        },
+        {
+          model: Transaction,
+          as: "UserTransactions",
+          attributes: ["id", "points", "type", "description"],
+        },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+module.exports = { signUp, signIn, getAllUsers, signUpForAdmin, getUserById };
