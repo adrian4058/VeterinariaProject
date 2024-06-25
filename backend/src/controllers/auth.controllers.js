@@ -1,21 +1,31 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-// const nodemailer = require("nodemailer");
 const { User, Points, Transaction } = require("../database/db");
+const sendVerificationEmail = require("../email/sendVerificationEmail");
+const sendWelcomeEmail = require("../email/sendWelcomeEmail");
 
 const SECRET_KEY = "clavesecreta";
 
-// let transporter = nodemailer.createTransport({
-//   service: 'gmail',
-//   auth: {
-//     type: 'OAuth2',
-//     user: process.env.MAIL_USERNAME,
-//     pass: process.env.MAIL_PASSWORD,
-//     clientId: process.env.OAUTH_CLIENTID,
-//     clientSecret: process.env.OAUTH_CLIENT_SECRET,
-//     refreshToken: process.env.OAUTH_REFRESH_TOKEN
-//   }
-// });
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    const user = await User.findByPk(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    user.verified = true;
+    await user.save();
+
+    await sendWelcomeEmail(user.email, user.firstname);
+
+    res.status(200).json({ message: "Cuenta verificada con éxito" });
+  } catch (error) {
+    res.status(400).json({ error: "Token inválido o expirado" });
+  }
+};
 
 const signUp = async (req, res) => {
   try {
@@ -51,6 +61,9 @@ const signUp = async (req, res) => {
     });
 
     const token = jwt.sign({ id: newUser.id, role: newUser.role }, SECRET_KEY, { expiresIn: "1h" });
+
+    await sendVerificationEmail(email, token);
+
     res.status(201).json({ newUser, token });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -72,25 +85,34 @@ const signUpForAdmin = async (req, res) => {
     if (typeof dni !== "number") {
       return res.status(400).json({ error: "El DNI debe ser un número" });
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "El email no es válido" });
+
+    let newUserEmail = email;
+    if (newUserEmail && typeof newUserEmail !== "string") {
+      return res.status(400).json({ error: "El email debe ser una cadena de caracteres" });
+    }
+    if (!newUserEmail) {
+      newUserEmail = dni.toString();
     }
 
     const hashedPassword = await bcrypt.hash(dni.toString(), 10);
 
     const newUser = await User.create({
-      email,
+      email: newUserEmail,
       password: hashedPassword,
       firstname,
       lastname,
       dni,
       role: role || "user",
+      verified: true,
     });
 
     await Points.create({
       userId: newUser.id,
     });
+
+    if (email) {
+      await sendWelcomeEmail(email, firstname);
+    }
 
     const token = jwt.sign({ id: newUser.id, role: newUser.role }, SECRET_KEY, { expiresIn: "1h" });
     res.status(201).json({ newUser, token });
@@ -180,4 +202,4 @@ const getUserById = async (req, res) => {
   }
 };
 
-module.exports = { signUp, signIn, getAllUsers, signUpForAdmin, getUserById };
+module.exports = { signUp, signIn, getAllUsers, signUpForAdmin, getUserById, verifyEmail };

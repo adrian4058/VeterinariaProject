@@ -1,5 +1,7 @@
 const { User, Points, Transaction } = require("../database/db");
 
+//simplificar lista de dni
+
 const getTransactionUserId = async (req, res) => {
   try {
     const { userId } = req.params;

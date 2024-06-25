@@ -34,5 +34,9 @@ module.exports = (sequelize) => {
       defaultValue: "user",
       allowNull: false,
     },
+    verified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
   });
 };
