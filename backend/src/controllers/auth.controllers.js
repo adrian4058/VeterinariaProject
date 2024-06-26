@@ -3,8 +3,10 @@ const bcrypt = require("bcrypt");
 const { User, Points, Transaction } = require("../database/db");
 const sendVerificationEmail = require("../email/sendVerificationEmail");
 const sendWelcomeEmail = require("../email/sendWelcomeEmail");
+const sendPasswordResetEmail = require("../email/sendPasswordResetEmail");
 
 const SECRET_KEY = "clavesecreta";
+const RESET_PASSWORD_KEY = "otraClaveSecreta";
 
 const verifyEmail = async (req, res) => {
   try {
@@ -22,6 +24,51 @@ const verifyEmail = async (req, res) => {
     await sendWelcomeEmail(user.email, user.firstname);
 
     res.status(200).json({ message: "Cuenta verificada con éxito" });
+  } catch (error) {
+    res.status(400).json({ error: "Token inválido o expirado" });
+  }
+};
+
+const sendPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const token = jwt.sign({ id: user.id }, RESET_PASSWORD_KEY, { expiresIn: "1h" });
+
+    await sendPasswordResetEmail(email, token);
+
+    res.status(200).json({ message: "Correo de restablecimiento de contraseña enviado" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const { newPassword } = req.body;
+
+    if (typeof newPassword !== "string") {
+      return res.status(400).json({ error: "La nueva contraseña debe ser una cadena de caracteres" });
+    }
+
+    const decoded = jwt.verify(token, RESET_PASSWORD_KEY);
+
+    const user = await User.findByPk(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Contraseña restablecida con éxito" });
   } catch (error) {
     res.status(400).json({ error: "Token inválido o expirado" });
   }
@@ -202,4 +249,15 @@ const getUserById = async (req, res) => {
   }
 };
 
-module.exports = { signUp, signIn, getAllUsers, signUpForAdmin, getUserById, verifyEmail };
+//hay que hacer una ruta para que el usuario pueda establecer su mail si fue registrado por un admin
+
+module.exports = {
+  signUp,
+  signIn,
+  getAllUsers,
+  signUpForAdmin,
+  getUserById,
+  verifyEmail,
+  sendPasswordReset,
+  resetPassword,
+};

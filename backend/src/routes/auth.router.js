@@ -7,6 +7,8 @@ const {
   signUpForAdmin,
   getUserById,
   verifyEmail,
+  sendPasswordReset,
+  resetPassword,
 } = require("../controllers/auth.controllers");
 const { authenticateJWT } = require("../middleware/jwt");
 
@@ -22,5 +24,9 @@ router.get("/user/:userId", getUserById);
 router.get("/allusers/", authenticateJWT, getAllUsers);
 //verificar el mail
 router.get("/verify-email", verifyEmail);
+//solicitar el reestablecimiento de la contraseña
+router.post("/password-reset", sendPasswordReset);
+//reestablecer la contraseña
+router.post("/reset-password", resetPassword);
 
 module.exports = router;
